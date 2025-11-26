@@ -63,7 +63,7 @@
 
                     // Update stats
                     $('#wc-aic-total-images').text(response.data.total_images);
-                    $('#wc-aic-product-images').text(response.data.product_images);
+                    $('#wc-aic-used-images').text(response.data.used_images);
                     $('#wc-aic-abandoned-count').text(response.data.abandoned_count);
 
                     // Show stats

@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Abandoned Image Cleanup
  * Plugin URI: https://github.com/dcArock/woocommerce-abandoned-image-cleanup
  * Description: Scan your media library for images not attached to any WooCommerce products and clean them up easily.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: dcArock
  * Author URI: https://github.com/dcArock
  * Text Domain: wc-abandoned-image-cleanup
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_AIC_VERSION', '1.1.0');
+define('WC_AIC_VERSION', '1.2.0');
 define('WC_AIC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_AIC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WC_AIC_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -177,18 +177,18 @@ class WC_Abandoned_Image_Cleanup {
         // Get all media library images
         $all_images = $this->get_all_media_images();
 
-        // Get all WooCommerce product images
-        $product_images = $this->get_all_product_images();
+        // Get all images used anywhere on the site
+        $used_images = $this->get_all_used_images();
 
         // Find abandoned images
-        $abandoned_images = $this->find_abandoned_images($all_images, $product_images);
+        $abandoned_images = $this->find_abandoned_images($all_images, $used_images);
 
         // Get image details for display
         $image_details = $this->get_image_details($abandoned_images);
 
         wp_send_json_success(array(
             'total_images' => count($all_images),
-            'product_images' => count($product_images),
+            'used_images' => count($used_images),
             'abandoned_count' => count($abandoned_images),
             'abandoned_images' => $image_details
         ));
@@ -211,11 +211,33 @@ class WC_Abandoned_Image_Cleanup {
     }
 
     /**
-     * Get all WooCommerce product images
+     * Get all images used anywhere on the site
      */
-    private function get_all_product_images() {
-        global $wpdb;
+    private function get_all_used_images() {
+        $used_image_ids = array();
 
+        // 1. Get product images (featured, gallery, variations)
+        $used_image_ids = array_merge($used_image_ids, $this->get_product_images());
+
+        // 2. Get images referenced in content (posts, pages, products)
+        $used_image_ids = array_merge($used_image_ids, $this->get_content_images());
+
+        // 3. Get images from post meta fields
+        $used_image_ids = array_merge($used_image_ids, $this->get_meta_images());
+
+        // 4. Get images from custom fields and theme options
+        $used_image_ids = array_merge($used_image_ids, $this->get_custom_field_images());
+
+        // Remove duplicates
+        $used_image_ids = array_unique($used_image_ids);
+
+        return $used_image_ids;
+    }
+
+    /**
+     * Get product images (featured, gallery, variations)
+     */
+    private function get_product_images() {
         $image_ids = array();
 
         // Get all products
@@ -252,8 +274,232 @@ class WC_Abandoned_Image_Cleanup {
             }
         }
 
-        // Remove duplicates
-        $image_ids = array_unique($image_ids);
+        return $image_ids;
+    }
+
+    /**
+     * Get images referenced in post/page/product content
+     */
+    private function get_content_images() {
+        global $wpdb;
+
+        $image_ids = array();
+
+        // Get all posts, pages, and products content
+        $contents = $wpdb->get_col("
+            SELECT post_content
+            FROM {$wpdb->posts}
+            WHERE post_status IN ('publish', 'pending', 'draft', 'future', 'private', 'trash')
+            AND post_content != ''
+        ");
+
+        // Get all media library images with their URLs
+        $all_media_images = $this->get_all_media_images();
+        $image_data = array();
+
+        foreach ($all_media_images as $image_id) {
+            $file_path = get_attached_file($image_id);
+            if ($file_path) {
+                $filename = basename($file_path);
+                $image_url = wp_get_attachment_url($image_id);
+
+                $image_data[$image_id] = array(
+                    'filename' => $filename,
+                    'url' => $image_url,
+                    // Get all image sizes
+                    'sizes' => $this->get_image_size_urls($image_id)
+                );
+            }
+        }
+
+        // Search for images in content
+        foreach ($contents as $content) {
+            foreach ($image_data as $image_id => $data) {
+                // Check if filename or URL appears in content
+                if (strpos($content, $data['filename']) !== false ||
+                    strpos($content, $data['url']) !== false) {
+                    $image_ids[] = $image_id;
+                    continue;
+                }
+
+                // Check all image sizes
+                foreach ($data['sizes'] as $size_url) {
+                    if (strpos($content, $size_url) !== false) {
+                        $image_ids[] = $image_id;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $image_ids;
+    }
+
+    /**
+     * Get all URLs for different image sizes
+     */
+    private function get_image_size_urls($image_id) {
+        $urls = array();
+        $sizes = get_intermediate_image_sizes();
+
+        foreach ($sizes as $size) {
+            $url = wp_get_attachment_image_url($image_id, $size);
+            if ($url) {
+                $urls[] = $url;
+            }
+        }
+
+        return $urls;
+    }
+
+    /**
+     * Get images from post meta fields
+     */
+    private function get_meta_images() {
+        global $wpdb;
+
+        $image_ids = array();
+
+        // Get all meta values that might contain image IDs or URLs
+        $meta_values = $wpdb->get_col("
+            SELECT meta_value
+            FROM {$wpdb->postmeta}
+            WHERE meta_value != ''
+        ");
+
+        // Get all media library images
+        $all_media_images = $this->get_all_media_images();
+        $image_data = array();
+
+        foreach ($all_media_images as $image_id) {
+            $file_path = get_attached_file($image_id);
+            if ($file_path) {
+                $filename = basename($file_path);
+                $image_url = wp_get_attachment_url($image_id);
+
+                $image_data[$image_id] = array(
+                    'id' => $image_id,
+                    'filename' => $filename,
+                    'url' => $image_url,
+                    'sizes' => $this->get_image_size_urls($image_id)
+                );
+            }
+        }
+
+        // Search for images in meta values
+        foreach ($meta_values as $meta_value) {
+            // Skip empty values
+            if (empty($meta_value)) {
+                continue;
+            }
+
+            foreach ($image_data as $image_id => $data) {
+                // Check if meta value is the image ID itself
+                if ($meta_value == $image_id) {
+                    $image_ids[] = $image_id;
+                    continue;
+                }
+
+                // Check if filename or URL appears in meta value
+                if (strpos($meta_value, $data['filename']) !== false ||
+                    strpos($meta_value, $data['url']) !== false) {
+                    $image_ids[] = $image_id;
+                    continue;
+                }
+
+                // Check all image sizes
+                foreach ($data['sizes'] as $size_url) {
+                    if (strpos($meta_value, $size_url) !== false) {
+                        $image_ids[] = $image_id;
+                        break;
+                    }
+                }
+
+                // Check if meta value is serialized and contains image ID
+                if (is_serialized($meta_value)) {
+                    $unserialized = @unserialize($meta_value);
+                    if (is_array($unserialized) || is_object($unserialized)) {
+                        $serialized_string = serialize($unserialized);
+                        if (strpos($serialized_string, $data['filename']) !== false ||
+                            strpos($serialized_string, $data['url']) !== false ||
+                            strpos($serialized_string, (string)$image_id) !== false) {
+                            $image_ids[] = $image_id;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $image_ids;
+    }
+
+    /**
+     * Get images from custom fields and theme options
+     */
+    private function get_custom_field_images() {
+        global $wpdb;
+
+        $image_ids = array();
+
+        // Check theme mods (customizer settings)
+        $theme_mods = get_theme_mods();
+        if (is_array($theme_mods)) {
+            $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($theme_mods));
+        }
+
+        // Check options table for common theme/plugin settings
+        $options = $wpdb->get_results("
+            SELECT option_value
+            FROM {$wpdb->options}
+            WHERE option_name LIKE '%logo%'
+               OR option_name LIKE '%image%'
+               OR option_name LIKE '%banner%'
+               OR option_name LIKE '%icon%'
+               OR option_name LIKE '%avatar%'
+               OR option_name LIKE '%background%'
+        ");
+
+        foreach ($options as $option) {
+            if (!empty($option->option_value)) {
+                $value = maybe_unserialize($option->option_value);
+                $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($value));
+            }
+        }
+
+        return $image_ids;
+    }
+
+    /**
+     * Extract image IDs from various data formats
+     */
+    private function extract_image_ids_from_data($data) {
+        $image_ids = array();
+
+        if (is_numeric($data) && $data > 0) {
+            // Check if it's a valid attachment
+            if (wp_attachment_is_image($data)) {
+                $image_ids[] = intval($data);
+            }
+        } elseif (is_string($data)) {
+            // Check if it's a URL or filename
+            $all_media_images = $this->get_all_media_images();
+            foreach ($all_media_images as $image_id) {
+                $image_url = wp_get_attachment_url($image_id);
+                $filename = basename(get_attached_file($image_id));
+
+                if (strpos($data, $filename) !== false || strpos($data, $image_url) !== false) {
+                    $image_ids[] = $image_id;
+                }
+            }
+        } elseif (is_array($data)) {
+            foreach ($data as $value) {
+                $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($value));
+            }
+        } elseif (is_object($data)) {
+            foreach (get_object_vars($data) as $value) {
+                $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($value));
+            }
+        }
 
         return $image_ids;
     }
@@ -261,8 +507,8 @@ class WC_Abandoned_Image_Cleanup {
     /**
      * Find abandoned images
      */
-    private function find_abandoned_images($all_images, $product_images) {
-        return array_diff($all_images, $product_images);
+    private function find_abandoned_images($all_images, $used_images) {
+        return array_diff($all_images, $used_images);
     }
 
     /**

@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
     <h1><?php esc_html_e('Scan your media library for abandoned images', 'wc-abandoned-image-cleanup'); ?></h1>
 
     <div class="wc-aic-intro">
-        <p><?php esc_html_e('This tool will scan your media library and identify images that are not attached to any WooCommerce products. This includes images from deleted products or images that were uploaded but never used.', 'wc-abandoned-image-cleanup'); ?></p>
+        <p><?php esc_html_e('This tool performs a comprehensive scan of your entire website to identify truly abandoned images. It checks products, pages, posts, product descriptions, custom fields, theme settings, and all database meta fields to ensure only genuinely unused images are flagged for deletion.', 'wc-abandoned-image-cleanup'); ?></p>
         <p class="wc-aic-warning">
             <span class="dashicons dashicons-warning"></span>
             <strong><?php esc_html_e('Important:', 'wc-abandoned-image-cleanup'); ?></strong>
@@ -39,8 +39,8 @@ if (!defined('ABSPATH')) {
             <div class="wc-aic-stat-label"><?php esc_html_e('Total Images', 'wc-abandoned-image-cleanup'); ?></div>
         </div>
         <div class="wc-aic-stat-box">
-            <div class="wc-aic-stat-number" id="wc-aic-product-images">0</div>
-            <div class="wc-aic-stat-label"><?php esc_html_e('Used in Products', 'wc-abandoned-image-cleanup'); ?></div>
+            <div class="wc-aic-stat-number" id="wc-aic-used-images">0</div>
+            <div class="wc-aic-stat-label"><?php esc_html_e('Images in Use', 'wc-abandoned-image-cleanup'); ?></div>
         </div>
         <div class="wc-aic-stat-box wc-aic-stat-abandoned">
             <div class="wc-aic-stat-number" id="wc-aic-abandoned-count">0</div>

@@ -1,23 +1,27 @@
 # WooCommerce Abandoned Image Cleanup
 
-A WordPress plugin that helps you identify and remove images in your media library that are not attached to any WooCommerce products.
+A comprehensive WordPress plugin that scans your entire website to identify and safely remove truly abandoned images - checking products, content, custom fields, theme settings, and database meta to ensure only genuinely unused images are flagged for deletion.
 
 ## Description
 
-Over time, WooCommerce stores accumulate unused images from deleted products, test uploads, or images that were never assigned to products. This plugin scans your entire media library and identifies all images that are not being used by any WooCommerce product, making it easy to clean up and free up storage space.
+Over time, WooCommerce stores accumulate unused images from deleted products, test uploads, or images that were never assigned to products. This plugin performs a **comprehensive scan** of your entire website - not just products, but also pages, posts, product descriptions, custom fields, theme settings, and all database meta fields - to identify truly abandoned images that are not being used anywhere on your site.
 
 ## Features
 
 - **Simple Scan Interface**: One-click scanning with a clear, easy-to-use admin interface
-- **Comprehensive Detection**: Scans all product images including:
-  - Featured product images
-  - Product gallery images
-  - Variable product variation images
-  - Products in all statuses (published, draft, pending, private, trash)
+- **Comprehensive Site-Wide Scanning**: Thoroughly checks your entire website including:
+  - **Product Images**: Featured images, galleries, and variation images
+  - **Content**: All posts, pages, and product descriptions (HTML content)
+  - **Custom Fields**: Product meta fields and custom post meta
+  - **Database**: All postmeta entries for image references
+  - **Theme Settings**: Logos, backgrounds, banners from theme customizer
+  - **Options**: Site-wide settings that may reference images
+  - **All Image Sizes**: Checks thumbnails, medium, large, and custom sizes
+- **Smart Detection**: Only flags truly abandoned images, protecting logos and content images
 - **Visual Results**: Displays abandoned images in a familiar media library grid layout
 - **Easy Bulk Selection**: Select individual images or use "Select All" for bulk operations
 - **Safe Deletion**: Multiple warnings and confirmation prompts before deletion
-- **Detailed Statistics**: View total images, used images, and abandoned image counts
+- **Detailed Statistics**: View total images, images in use, and abandoned image counts
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
 
 ## Requirements
@@ -83,10 +87,25 @@ An image is considered abandoned if it meets ALL of these criteria:
 - It is NOT used as a featured image for any product
 - It is NOT in any product gallery
 - It is NOT used by any product variation
+- It is NOT referenced in any post or page content
+- It is NOT used in any product description
+- It is NOT stored in any custom field or meta data
+- It is NOT referenced in theme settings (logos, backgrounds, etc.)
+- It is NOT found in the options table
 
-### What Images Are NOT Scanned?
+### How Comprehensive is the Scan?
 
-This plugin only scans for WooCommerce product images. Images used elsewhere on your site (posts, pages, widgets, theme files, etc.) will still be flagged as abandoned if they're not attached to products.
+The plugin performs a **deep scan** of your entire WordPress database:
+- ✅ Scans all product images (featured, galleries, variations)
+- ✅ Searches HTML content of all posts, pages, and products
+- ✅ Checks all postmeta fields for image IDs and URLs
+- ✅ Examines theme customizer settings
+- ✅ Searches options table for image references
+- ✅ Checks all image sizes (thumbnail, medium, large, custom)
+- ✅ Handles both image IDs and URLs
+- ✅ Processes serialized data in meta fields
+
+This ensures that logos, featured images in blog posts, images in product descriptions, and any other actively used images are **never** flagged as abandoned.
 
 ## Screenshots
 
@@ -103,7 +122,11 @@ Easy selection and deletion with multiple safety warnings.
 
 **Q: Will this delete images used in blog posts or pages?**
 
-A: The plugin only checks if images are used in WooCommerce products. If an image is used in a blog post but not in any product, it will be flagged as abandoned. Always review the list carefully before deleting.
+A: No! Version 1.2.0 and above performs a comprehensive scan of your entire site. Images used in posts, pages, product descriptions, or anywhere else on your site are protected and will NOT be flagged as abandoned.
+
+**Q: What about my logo and theme images?**
+
+A: These are safe! The plugin scans theme customizer settings, options table, and all meta fields to ensure logos, backgrounds, and other theme images are never flagged as abandoned.
 
 **Q: What happens to deleted images?**
 
@@ -113,9 +136,17 @@ A: Images are permanently deleted (bypassing the trash). They cannot be recovere
 
 A: Yes! The plugin scans all product types including variable products and their variations.
 
-**Q: Will this affect my product performance?**
+**Q: Will this affect my site performance during scan?**
 
-A: No. The scan only reads data; it doesn't modify anything until you explicitly delete images.
+A: The scan may take a few moments for large sites as it performs a comprehensive database search. However, it only reads data and doesn't modify anything until you explicitly delete images. The scan is performed via AJAX so it won't interrupt your work.
+
+**Q: Does it check product descriptions?**
+
+A: Yes! The plugin checks all post content including product descriptions. If an image is used in a product's short or long description, it will be marked as "in use."
+
+**Q: What about images in custom fields?**
+
+A: Absolutely! The plugin scans all postmeta and custom fields, including serialized data, to find image references.
 
 **Q: How often should I run scans?**
 
@@ -126,6 +157,19 @@ A: Run scans periodically based on your needs - monthly or quarterly is typical 
 For bug reports and feature requests, please use the [GitHub repository](https://github.com/dcArock/woocommerce-abandoned-image-cleanup/issues).
 
 ## Changelog
+
+### 1.2.0
+- **Major Enhancement**: Comprehensive site-wide scanning
+- Scan all posts, pages, and product content for image references
+- Check product descriptions and custom fields
+- Scan all postmeta entries for image IDs and URLs
+- Check theme customizer settings (logos, backgrounds, etc.)
+- Search options table for image references
+- Handle all image sizes (thumbnail, medium, large, custom)
+- Process serialized data in meta fields
+- Smart detection to protect logos and content images
+- Updated UI to reflect "Images in Use" instead of "Product Images"
+- Improved accuracy - only truly abandoned images are flagged
 
 ### 1.1.0
 - Add WooCommerce HPOS (High-Performance Order Storage) compatibility
