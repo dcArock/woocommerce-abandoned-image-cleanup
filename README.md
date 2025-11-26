@@ -158,6 +158,15 @@ For bug reports and feature requests, please use the [GitHub repository](https:/
 
 ## Changelog
 
+### 1.3.0
+- **Simplified & Improved Scanning**: Complete rewrite of scanning logic
+- Direct database search approach for better accuracy and performance
+- For each image, searches filename in wp_posts, wp_postmeta, and wp_options tables
+- Uses WordPress prepared statements for security
+- Faster execution with LIMIT 1 queries
+- More reliable detection of abandoned images
+- Fixes issue where no abandoned images were being found
+
 ### 1.2.0
 - **Major Enhancement**: Comprehensive site-wide scanning
 - Scan all posts, pages, and product content for image references
