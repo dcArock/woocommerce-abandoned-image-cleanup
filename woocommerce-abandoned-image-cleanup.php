@@ -212,296 +212,82 @@ class WC_Abandoned_Image_Cleanup {
 
     /**
      * Get all images used anywhere on the site
+     * Searches for image filenames in wp_posts, wp_postmeta, and wp_options tables
      */
     private function get_all_used_images() {
+        global $wpdb;
+
         $used_image_ids = array();
+        $all_images = $this->get_all_media_images();
 
-        // 1. Get product images (featured, gallery, variations)
-        $used_image_ids = array_merge($used_image_ids, $this->get_product_images());
-
-        // 2. Get images referenced in content (posts, pages, products)
-        $used_image_ids = array_merge($used_image_ids, $this->get_content_images());
-
-        // 3. Get images from post meta fields
-        $used_image_ids = array_merge($used_image_ids, $this->get_meta_images());
-
-        // 4. Get images from custom fields and theme options
-        $used_image_ids = array_merge($used_image_ids, $this->get_custom_field_images());
-
-        // Remove duplicates
-        $used_image_ids = array_unique($used_image_ids);
-
-        return $used_image_ids;
-    }
-
-    /**
-     * Get product images (featured, gallery, variations)
-     */
-    private function get_product_images() {
-        $image_ids = array();
-
-        // Get all products
-        $products = wc_get_products(array(
-            'limit' => -1,
-            'status' => array('publish', 'pending', 'draft', 'future', 'private', 'trash')
-        ));
-
-        foreach ($products as $product) {
-            // Get featured image
-            $featured_image_id = $product->get_image_id();
-            if ($featured_image_id) {
-                $image_ids[] = $featured_image_id;
-            }
-
-            // Get gallery images
-            $gallery_image_ids = $product->get_gallery_image_ids();
-            if (!empty($gallery_image_ids)) {
-                $image_ids = array_merge($image_ids, $gallery_image_ids);
-            }
-
-            // For variable products, check variations
-            if ($product->is_type('variable')) {
-                $variations = $product->get_children();
-                foreach ($variations as $variation_id) {
-                    $variation = wc_get_product($variation_id);
-                    if ($variation) {
-                        $variation_image_id = $variation->get_image_id();
-                        if ($variation_image_id) {
-                            $image_ids[] = $variation_image_id;
-                        }
-                    }
-                }
-            }
-        }
-
-        return $image_ids;
-    }
-
-    /**
-     * Get images referenced in post/page/product content
-     */
-    private function get_content_images() {
-        global $wpdb;
-
-        $image_ids = array();
-
-        // Get all posts, pages, and products content
-        $contents = $wpdb->get_col("
-            SELECT post_content
-            FROM {$wpdb->posts}
-            WHERE post_status IN ('publish', 'pending', 'draft', 'future', 'private', 'trash')
-            AND post_content != ''
-        ");
-
-        // Get all media library images with their URLs
-        $all_media_images = $this->get_all_media_images();
-        $image_data = array();
-
-        foreach ($all_media_images as $image_id) {
+        foreach ($all_images as $image_id) {
             $file_path = get_attached_file($image_id);
-            if ($file_path) {
-                $filename = basename($file_path);
-                $image_url = wp_get_attachment_url($image_id);
-
-                $image_data[$image_id] = array(
-                    'filename' => $filename,
-                    'url' => $image_url,
-                    // Get all image sizes
-                    'sizes' => $this->get_image_size_urls($image_id)
-                );
-            }
-        }
-
-        // Search for images in content
-        foreach ($contents as $content) {
-            foreach ($image_data as $image_id => $data) {
-                // Check if filename or URL appears in content
-                if (strpos($content, $data['filename']) !== false ||
-                    strpos($content, $data['url']) !== false) {
-                    $image_ids[] = $image_id;
-                    continue;
-                }
-
-                // Check all image sizes
-                foreach ($data['sizes'] as $size_url) {
-                    if (strpos($content, $size_url) !== false) {
-                        $image_ids[] = $image_id;
-                        break;
-                    }
-                }
-            }
-        }
-
-        return $image_ids;
-    }
-
-    /**
-     * Get all URLs for different image sizes
-     */
-    private function get_image_size_urls($image_id) {
-        $urls = array();
-        $sizes = get_intermediate_image_sizes();
-
-        foreach ($sizes as $size) {
-            $url = wp_get_attachment_image_url($image_id, $size);
-            if ($url) {
-                $urls[] = $url;
-            }
-        }
-
-        return $urls;
-    }
-
-    /**
-     * Get images from post meta fields
-     */
-    private function get_meta_images() {
-        global $wpdb;
-
-        $image_ids = array();
-
-        // Get all meta values that might contain image IDs or URLs
-        $meta_values = $wpdb->get_col("
-            SELECT meta_value
-            FROM {$wpdb->postmeta}
-            WHERE meta_value != ''
-        ");
-
-        // Get all media library images
-        $all_media_images = $this->get_all_media_images();
-        $image_data = array();
-
-        foreach ($all_media_images as $image_id) {
-            $file_path = get_attached_file($image_id);
-            if ($file_path) {
-                $filename = basename($file_path);
-                $image_url = wp_get_attachment_url($image_id);
-
-                $image_data[$image_id] = array(
-                    'id' => $image_id,
-                    'filename' => $filename,
-                    'url' => $image_url,
-                    'sizes' => $this->get_image_size_urls($image_id)
-                );
-            }
-        }
-
-        // Search for images in meta values
-        foreach ($meta_values as $meta_value) {
-            // Skip empty values
-            if (empty($meta_value)) {
+            if (!$file_path) {
                 continue;
             }
 
-            foreach ($image_data as $image_id => $data) {
-                // Check if meta value is the image ID itself
-                if ($meta_value == $image_id) {
-                    $image_ids[] = $image_id;
-                    continue;
-                }
+            $filename = basename($file_path);
+            // Also get filename without extension for partial matches
+            $filename_no_ext = pathinfo($filename, PATHINFO_FILENAME);
 
-                // Check if filename or URL appears in meta value
-                if (strpos($meta_value, $data['filename']) !== false ||
-                    strpos($meta_value, $data['url']) !== false) {
-                    $image_ids[] = $image_id;
-                    continue;
-                }
+            // Check if filename exists in wp_posts table
+            $found_in_posts = $wpdb->get_var($wpdb->prepare("
+                SELECT COUNT(*)
+                FROM {$wpdb->posts}
+                WHERE post_content LIKE %s
+                   OR post_excerpt LIKE %s
+                   OR post_title LIKE %s
+                LIMIT 1
+            ", '%' . $wpdb->esc_like($filename) . '%', '%' . $wpdb->esc_like($filename) . '%', '%' . $wpdb->esc_like($filename) . '%'));
 
-                // Check all image sizes
-                foreach ($data['sizes'] as $size_url) {
-                    if (strpos($meta_value, $size_url) !== false) {
-                        $image_ids[] = $image_id;
-                        break;
-                    }
-                }
+            if ($found_in_posts > 0) {
+                $used_image_ids[] = $image_id;
+                continue;
+            }
 
-                // Check if meta value is serialized and contains image ID
-                if (is_serialized($meta_value)) {
-                    $unserialized = @unserialize($meta_value);
-                    if (is_array($unserialized) || is_object($unserialized)) {
-                        $serialized_string = serialize($unserialized);
-                        if (strpos($serialized_string, $data['filename']) !== false ||
-                            strpos($serialized_string, $data['url']) !== false ||
-                            strpos($serialized_string, (string)$image_id) !== false) {
-                            $image_ids[] = $image_id;
-                        }
-                    }
-                }
+            // Check if filename exists in wp_postmeta table
+            $found_in_postmeta = $wpdb->get_var($wpdb->prepare("
+                SELECT COUNT(*)
+                FROM {$wpdb->postmeta}
+                WHERE meta_value LIKE %s
+                   OR meta_value = %d
+                LIMIT 1
+            ", '%' . $wpdb->esc_like($filename) . '%', $image_id));
+
+            if ($found_in_postmeta > 0) {
+                $used_image_ids[] = $image_id;
+                continue;
+            }
+
+            // Check if filename exists in wp_options table
+            $found_in_options = $wpdb->get_var($wpdb->prepare("
+                SELECT COUNT(*)
+                FROM {$wpdb->options}
+                WHERE option_value LIKE %s
+                LIMIT 1
+            ", '%' . $wpdb->esc_like($filename) . '%'));
+
+            if ($found_in_options > 0) {
+                $used_image_ids[] = $image_id;
+                continue;
+            }
+
+            // Also check for the image ID in postmeta (for featured images, galleries, etc.)
+            $found_by_id = $wpdb->get_var($wpdb->prepare("
+                SELECT COUNT(*)
+                FROM {$wpdb->postmeta}
+                WHERE meta_key IN ('_thumbnail_id', '_product_image_gallery')
+                   AND meta_value LIKE %s
+                LIMIT 1
+            ", '%' . $wpdb->esc_like((string)$image_id) . '%'));
+
+            if ($found_by_id > 0) {
+                $used_image_ids[] = $image_id;
+                continue;
             }
         }
 
-        return $image_ids;
-    }
-
-    /**
-     * Get images from custom fields and theme options
-     */
-    private function get_custom_field_images() {
-        global $wpdb;
-
-        $image_ids = array();
-
-        // Check theme mods (customizer settings)
-        $theme_mods = get_theme_mods();
-        if (is_array($theme_mods)) {
-            $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($theme_mods));
-        }
-
-        // Check options table for common theme/plugin settings
-        $options = $wpdb->get_results("
-            SELECT option_value
-            FROM {$wpdb->options}
-            WHERE option_name LIKE '%logo%'
-               OR option_name LIKE '%image%'
-               OR option_name LIKE '%banner%'
-               OR option_name LIKE '%icon%'
-               OR option_name LIKE '%avatar%'
-               OR option_name LIKE '%background%'
-        ");
-
-        foreach ($options as $option) {
-            if (!empty($option->option_value)) {
-                $value = maybe_unserialize($option->option_value);
-                $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($value));
-            }
-        }
-
-        return $image_ids;
-    }
-
-    /**
-     * Extract image IDs from various data formats
-     */
-    private function extract_image_ids_from_data($data) {
-        $image_ids = array();
-
-        if (is_numeric($data) && $data > 0) {
-            // Check if it's a valid attachment
-            if (wp_attachment_is_image($data)) {
-                $image_ids[] = intval($data);
-            }
-        } elseif (is_string($data)) {
-            // Check if it's a URL or filename
-            $all_media_images = $this->get_all_media_images();
-            foreach ($all_media_images as $image_id) {
-                $image_url = wp_get_attachment_url($image_id);
-                $filename = basename(get_attached_file($image_id));
-
-                if (strpos($data, $filename) !== false || strpos($data, $image_url) !== false) {
-                    $image_ids[] = $image_id;
-                }
-            }
-        } elseif (is_array($data)) {
-            foreach ($data as $value) {
-                $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($value));
-            }
-        } elseif (is_object($data)) {
-            foreach (get_object_vars($data) as $value) {
-                $image_ids = array_merge($image_ids, $this->extract_image_ids_from_data($value));
-            }
-        }
-
-        return $image_ids;
+        return $used_image_ids;
     }
 
     /**
