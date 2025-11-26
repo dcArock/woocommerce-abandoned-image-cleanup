@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Abandoned Image Cleanup
  * Plugin URI: https://github.com/dcArock/woocommerce-abandoned-image-cleanup
  * Description: Scan your media library for images not attached to any WooCommerce products and clean them up easily.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: dcArock
  * Author URI: https://github.com/dcArock
  * Text Domain: wc-abandoned-image-cleanup
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('WC_AIC_VERSION', '1.0.0');
+define('WC_AIC_VERSION', '1.1.0');
 define('WC_AIC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WC_AIC_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WC_AIC_PLUGIN_BASENAME', plugin_basename(__FILE__));

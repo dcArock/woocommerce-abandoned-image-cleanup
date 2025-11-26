@@ -127,6 +127,10 @@ For bug reports and feature requests, please use the [GitHub repository](https:/
 
 ## Changelog
 
+### 1.1.0
+- Add WooCommerce HPOS (High-Performance Order Storage) compatibility
+- Declare compatibility with custom order tables feature
+
 ### 1.0.0
 - Initial release
 - Scan media library for abandoned images
